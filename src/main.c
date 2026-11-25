@@ -3,7 +3,7 @@
  *
  * Pacote fixo de 6 bytes:  ID | R | G | B | ACAO | CHECK
  *   ACAO: 0x01 LIGAR, 0x02 DESLIGAR, 0x03 TOGGLE, 0x04 PISCA 1s, 0x05 PISCA 2s
- *   CHECK: XOR dos 5 primeiros bytes  (ou CRC-8 se USE_CRC8 = 1 -> bonus)
+ *   CHECK: XOR dos 5 primeiros bytes
  *
  * UART0 da KL25Z (PTA1 = RX, PTA2 = TX), que chega no PC pela USB "SDA"
  * (porta COM virtual do OpenSDA). 115200 bps, 8N1.
@@ -21,7 +21,6 @@
 #include <zephyr/sys/printk.h>
 
 /* ---------------- Configuracao ---------------- */
-#define USE_CRC8        0      /* 0 = XOR (pedido no enunciado), 1 = CRC-8 (bonus) */
 #define DEVICE_ID       0x01   /* ID deste receptor */
 #define PKT_LEN         6
 #define BYTE_TIMEOUT_MS 20     /* tempo maximo entre bytes de um mesmo pacote */
@@ -66,28 +65,7 @@ static uint8_t calc_xor(const uint8_t *d, size_t n)
 	return x;
 }
 
-/* CRC-8, polinomio 0x07 (x^8 + x^2 + x + 1), valor inicial 0x00 */
-static uint8_t calc_crc8(const uint8_t *d, size_t n)
-{
-	uint8_t crc = 0x00;
 
-	for (size_t i = 0; i < n; i++) {
-		crc ^= d[i];
-		for (int b = 0; b < 8; b++) {
-			crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x07) : (uint8_t)(crc << 1);
-		}
-	}
-	return crc;
-}
-
-static uint8_t calc_check(const uint8_t *d, size_t n)
-{
-#if USE_CRC8
-	return calc_crc8(d, n);
-#else
-	return calc_xor(d, n);
-#endif
-}
 
 /* ---------------- LED ---------------- */
 static void led_apply(bool on)
@@ -142,9 +120,9 @@ static void process_packet(const uint8_t *p)
 		return;
 	}
 
-	uint8_t expected = calc_check(p, 5);
+	uint8_t expected = calc_xor(p, 5);
 
-	if (chk != expected) {
+	if (chk != expected) {  
 		cnt_bad_check++;
 		printk("[ERRO] CHECK invalido: recebido 0x%02X, calculado 0x%02X\n", chk, expected);
 		return;
@@ -261,8 +239,8 @@ int main(void)
 		return 0;
 	}
 
-	printk("Receptor UART LED RGB (KL25Z) pronto. ID=0x%02X, check=%s\n",
-	       DEVICE_ID, USE_CRC8 ? "CRC-8" : "XOR");
+	printk("Receptor UART LED RGB (KL25Z) pronto. ID=0x%02X, check=XOR\n",
+	       DEVICE_ID);
 
 	while (1) {
 		uint8_t c;
